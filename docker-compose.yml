@@ -1,29 +1,73 @@
-version: '3.8'
+version: "3.8"
 
 services:
   course-app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+
     container_name: bunny_course_streaming_backend
-    ports:
-      - "5000:5000"
+
+    restart: unless-stopped
+
     env_file:
       - .env
-    restart: unless-stopped
+
+    ports:
+      - "5000:5000"
+
     depends_on:
-      - postgres-db
+      postgres-db:
+        condition: service_healthy
+
+    volumes:
+      - ./uploads:/home/app/uploads
+      - ./public/output:/home/app/public/output
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - backend
 
   postgres-db:
     image: postgres:16-alpine
+
     container_name: bunny_course_streaming_postgres
+
+    restart: unless-stopped
+
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123123
-      POSTGRES_DB: course_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
     ports:
       - "5433:5432"
+
     volumes:
       - pgdata:/var/lib/postgresql/data
-    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - backend
 
 volumes:
   pgdata:
+
+networks:
+  backend:
