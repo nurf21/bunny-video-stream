@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistem Manajemen Materi Kursus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 id="form-title" class="text-xl font-bold mb-4">Tambah Course Baru</h2>
+            <form id="course-form" onsubmit="saveCourse(event)">
+                <input type="hidden" id="course-id">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Judul Course</label>
+                    <input type="text" id="title" required class="mt-1 w-full p-2 border rounded">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Nama Pembuat</label>
+                    <input type="text" id="creator" required class="mt-1 w-full p-2 border rounded">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Deskripsi</label>
+                    <textarea id="description" required class="mt-1 w-full p-2 border rounded rows=3"></textarea>
+                </div>
+                <div class="mb-4" id="video-input-group">
+                    <label class="block text-sm font-medium text-gray-700">File Video (MP4)</label>
+                    <input type="file" id="video" accept="video/mp4" class="mt-1 w-full text-sm text-gray-500">
+                </div>
+                <button type="submit" id="btn-submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Simpan Course</button>
+                <button type="button" id="btn-cancel" onclick="resetForm()" class="hidden w-full mt-2 bg-gray-400 text-white p-2 rounded">Batal Edit</button>
+            </form>
+            <p id="status-msg" class="text-sm mt-3 font-semibold"></p>
+        </div>
+
+        <div class="md:col-span-2 space-y-6">
+            <h2 class="text-2xl font-bold text-gray-800">Daftar Materi Kursus</h2>
+            
+            <div id="detail-section" class="hidden bg-white p-6 rounded-lg shadow border border-blue-200">
+                <h3 id="detail-title" class="text-xl font-bold text-blue-600 mb-1"></h3>
+                <p id="detail-creator" class="text-sm text-gray-500 mb-4"></p>
+                
+                <div style="position: relative; padding-top: 56.25%;">
+                    <iframe 
+                        id="course-player-iframe" 
+                        src="" 
+                        loading="lazy" 
+                        style="border: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;" 
+                        allow="accelerometer; gyroscope; autocomplete; encrypted-media; picture-in-picture;" 
+                        allowfullscreen="true">
+                    </iframe>
+                </div>
+                
+                <h4 class="font-semibold text-gray-700">Deskripsi:</h4>
+                <p id="detail-desc" class="text-gray-600 text-sm mt-1 whitespace-pre-line"></p>
+            </div>
+
+            <div id="course-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+        </div>
+    </div>
+
+    <div id="delete-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl">
+            <h3 class="text-lg font-bold text-gray-900">Konfirmasi Hapus</h3>
+            <p class="text-gray-500 text-sm mt-2">Apakah Anda yakin ingin menghapus course ini? Video dan seluruh file segmen juga akan dihapus permanen.</p>
+            <div class="flex justify-end space-x-3 mt-6">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 bg-gray-200 rounded text-gray-700">Batal</button>
+                <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 rounded text-white hover:bg-red-700">Ya, Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:5000/courses";
+        let targetDeleteId = null;
+
+        document.addEventListener("DOMContentLoaded", loadCourses);
+
+        function loadCourses() {
+            fetch(API_URL).then(res => res.json()).then(data => {
+                const list = document.getElementById("course-list");
+                list.innerHTML = "";
+                if(!data) return;
+                data.forEach(c => {
+                    list.innerHTML += `
+                        <div class="bg-white rounded-lg shadow overflow-hidden border hover:border-blue-400 transition cursor-pointer" onclick="showDetail(${JSON.stringify(c).減 })">
+                            <div class="p-4" onclick="event.stopPropagation();">
+                                <h3 class="font-bold text-lg text-gray-800 truncate" onclick="showDetail(${JSON.stringify(c).replace(/"/g, '&quot;')})">${c.title}</h3>
+                                <p class="text-sm text-gray-500">Oleh: ${c.creator}</p>
+                                <div class="flex justify-end space-x-2 mt-4">
+                                    <button onclick="editForm(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-sm bg-yellow-500 text-white px-3 py-1 rounded">Edit</button>
+                                    <button onclick="openDeleteModal(${c.id})" class="text-sm bg-red-600 text-white px-3 py-1 rounded">Hapus</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+        }
+
+        function showDetail(course) {
+            document.getElementById("detail-section").classList.remove("hidden");
+            document.getElementById("detail-title").textContent = course.title;
+            document.getElementById("detail-creator").textContent = "Pembuat: " + course.creator;
+            document.getElementById("detail-desc").textContent = course.description;
+            
+            const iframePlayer = document.getElementById("course-player-iframe");
+            
+            iframePlayer.src = course.video_url;
+            
+            document.getElementById("detail-section").scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function saveCourse(e) {
+            e.preventDefault();
+            const id = document.getElementById("course-id").value;
+            const status = document.getElementById("status-msg");
+            
+            const formData = new FormData();
+            formData.append("title", document.getElementById("title").value);
+            formData.append("creator", document.getElementById("creator").value);
+            formData.append("description", document.getElementById("description").value);
+
+            let method = "POST";
+            let url = API_URL;
+
+            if (id) {
+                method = "PUT";
+                url = `${API_URL}/${id}`;
+            } else {
+                if(!document.getElementById("video").files[0]) {
+                    alert("File video wajib dipilih untuk course baru!");
+                    return;
+                }
+                formData.append("video", document.getElementById("video").files[0]);
+                status.style.color = "#2563eb";
+                status.textContent = "Sedang memproses upload & kompresi video HLS... Mohon tunggu!";
+            }
+
+            fetch(url, { method: method, body: formData })
+                .then(res => res.json())
+                .then(res => {
+                    status.style.color = "#10b981";
+                    status.textContent = res.message;
+                    resetForm();
+                    loadCourses();
+                }).catch(() => {
+                    status.style.color = "#ef4444";
+                    status.textContent = "Terjadi kegagalan sistem.";
+                });
+        }
+
+        function editForm(course) {
+            document.getElementById("form-title").textContent = "Edit Course";
+            document.getElementById("course-id").value = course.id;
+            document.getElementById("title").value = course.title;
+            document.getElementById("creator").value = course.creator;
+            document.getElementById("description").value = course.description;
+            document.getElementById("video-input-group").classList.add("hidden");
+            document.getElementById("btn-cancel").classList.remove("hidden");
+        }
+
+        function resetForm() {
+            document.getElementById("form-title").textContent = "Tambah Course Baru";
+            document.getElementById("course-id").value = "";
+            document.getElementById("course-form").reset();
+            document.getElementById("video-input-group").classList.remove("hidden");
+            document.getElementById("btn-cancel").classList.add("hidden");
+        }
+
+        function openDeleteModal(id) {
+            targetDeleteId = id;
+            document.getElementById("delete-modal").classList.remove("hidden");
+            document.getElementById("confirm-delete-btn").onclick = confirmDelete;
+        }
+
+        function closeDeleteModal() {
+            document.getElementById("delete-modal").classList.add("hidden");
+            targetDeleteId = null;
+        }
+
+        function confirmDelete() {
+            console.log(targetDeleteId);
+            if(!targetDeleteId) return;
+            fetch(`${API_URL}/${targetDeleteId}`, { method: 'DELETE' })
+                .then(res => res.json())
+                .then(res => {
+                    alert(res.message);
+                    closeDeleteModal();
+                    document.getElementById("detail-section").classList.add("hidden");
+                    loadCourses();
+                });
+        }
+    </script>
+</body>
+</html>
